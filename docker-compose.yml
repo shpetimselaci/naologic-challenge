@@ -1,0 +1,6 @@
+services:
+  backend:
+    image: node:22-alpine
+    command: sleep infinity
+    volumes:
+      - ./:/home/app

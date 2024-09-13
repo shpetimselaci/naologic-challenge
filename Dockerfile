@@ -22,4 +22,4 @@ RUN cd /home/server
 COPY --from=install /temp/dev/package.json /temp/dev/pnpm-lock.yaml  ./
 COPY --from=install /temp/dev/node_modules node_modules
 
-ENTRYPOINT ["pnpm", "start"]
+ENTRYPOINT ["sleep", "infinity"]

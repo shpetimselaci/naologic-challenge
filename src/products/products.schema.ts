@@ -5,15 +5,20 @@ export type ProductDocument = HydratedDocument<Product>;
 
 @Schema()
 export class Product {
-  @Prop()
+  @Prop({ unique: true })
   id: string;
 
   @Prop()
   docId: string;
 
-  @Prop()
+  @Prop({ type: Object })
   data: Object;
 
+  @Prop()
+  vendorId: string;
+
+  @Prop()
+  manufacturerId: string;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

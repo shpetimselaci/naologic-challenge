@@ -1,0 +1,6 @@
+{
+  "name": "Naologic development environment",
+"dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/home/server"
+}

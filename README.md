@@ -24,7 +24,8 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This is a completed challenge for the backend engineer position at Naologic!
+
 
 ## Project setup
 
@@ -49,6 +50,8 @@ OPENAI_API_KEY=[PUT YOUR KEY HERE]
 ```
 
 
+For the `OPENAI_API_KEY` make sure to get it from [Open AI](https://platform.openai.com/settings/profile?tab=api-keys). You may have to add funds.
+
 After you've done that just run:
 
 ```bash
@@ -60,6 +63,37 @@ You'll see the logs showing up that the nest application is running.
 
 If you wanna get the import happening sooner, on file `src/products/products.service.ts`, comment out `line 21` and uncomment `line 22` so the cron runs every minute.
 
+
+## Folder structure
+
+It pretty much follows all of what Nest.js comes out of the box.
+
+A more in detail structure that I followed
+
+```
+src
+  config
+    - database.config-ts
+    - here goes any configuration stuff 
+  lib
+    - langchain.ts
+    - here goes any library that the project uses like langchain
+  [*]
+  [module]
+    - dto
+      - [module].d.ts
+    - [module].module.ts
+    - [module].schema.ts
+    - [module].service.ts
+  app.*.ts
+  database.module.ts
+  main.ts
+
+```
+
+Any change that you make in the editor will be reflected on the app that is inside the container. The volume is mounted in that way that any change will be picked up by the NestJS tsc watcher.
+
+# THANK YOU!
 
 # This is for running outside of docker
 

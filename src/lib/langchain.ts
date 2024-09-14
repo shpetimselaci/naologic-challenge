@@ -4,7 +4,7 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 
 const model = new ChatOpenAI({
   model: 'gpt-4',
-  openAIApiKey: process.env.OPENAI_API_KEY,
+  openAIApiKey: process.env.OPENAI_API_KEY, // drifted here a bit - should be something that comes from the nestjs config
 });
 
 export async function enhanceDescription(description: string): Promise<string> {

@@ -11,8 +11,17 @@ export class Product {
   @Prop()
   docId: string;
 
+  @Prop()
+  docType: string;
+
+  @Prop()
+  namespace: string;
+
+  @Prop()
+  status: string;
+
   @Prop({ type: Object })
-  data: Object;
+  data: object;
 
   @Prop()
   vendorId: string;

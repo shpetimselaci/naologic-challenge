@@ -28,6 +28,42 @@
 
 ## Project setup
 
+Install docker & docker-compose for things to start.
+
+To build the image:
+```bash
+docker compose build
+```
+
+Add a `.env` file:
+
+```
+MONGO_INITDB_ROOT_USERNAME=root
+MONGO_INITDB_ROOT_PASSWORD=example
+ME_CONFIG_MONGODB_ADMINUSERNAME=root
+ME_CONFIG_MONGODB_ADMINPASSWORD=example
+ME_CONFIG_MONGODB_URL=mongodb://root:example@mongo:27017/
+ME_CONFIG_BASICAUTH=false
+MONGO_URI=mongodb://root:example@mongo:27017/
+OPENAI_API_KEY=[PUT YOUR KEY HERE]
+```
+
+
+After you've done that just run:
+
+```bash
+docker compose up
+```
+
+You'll see the logs showing up that the nest application is running.
+
+
+If you wanna get the import happening sooner, on file `src/products/products.service.ts`, comment out `line 21` and uncomment `line 22` so the cron runs every minute.
+
+
+# This is for running outside of docker
+
+
 ```bash
 $ pnpm install
 ```

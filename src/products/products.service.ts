@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as XLSX from 'xlsx';
 import * as fs from 'node:fs';
@@ -18,14 +18,14 @@ export class ProductsService {
     private readonly productModel: Model<ProductDocument>,
   ) {}
   private readonly logger = new Logger(ProductsService.name);
-
-  @Cron(CronExpression.EVERY_DAY_AT_1AM) // change this to run it faster.
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  // @Cron(CronExpression.EVERY_MINUTE)
   async handleCron() {
     this.logger.log(`CRON job started at ${new Date().toISOString()}`);
     const buffer = await this.getResource();
     const result = this.processXLSXStream(buffer);
-
     await this.importProducts(result);
+
     this.logger.log(
       'Product import completed. Enhancing product descriptions...',
     );

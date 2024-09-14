@@ -1,63 +1,71 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as XLSX from 'xlsx';
 import * as fs from 'node:fs';
 import * as path from 'path';
 import * as _ from 'lodash';
+import { Product, ProductDocument } from './products.schema';
 
 XLSX.set_fs(fs);
 
-interface XLSXRow {
-  SiteSource: string;
-  ItemID: string;
-  ManufacturerID: string;
-  ManufacturerCode: string;
-  ManufacturerName: string;
-  ProductID: string;
-  ProductName: string;
-  ProductDescription: string;
-  ManufacturerItemCode: string;
-  ItemDescription: string;
-  ImageFileName: string;
-  ImageURL: string;
-  NDCItemCode: string;
-  PKG: string;
-  UnitPrice: number;
-  QuantityOnHand: number;
-  PriceDescription: string;
-  Availability: string;
-  PrimaryCategoryID: string;
-  PrimaryCategoryName: string;
-  SecondaryCategoryID: string;
-  SecondaryCategoryName: string;
-  CategoryID: string;
-  CategoryName: string;
-  IsRX: string;
-  IsTBD: string;
-}
-
-type XLSXData = XLSXRow[];
-
 @Injectable()
 export class ProductsService {
-  constructor(@InjectConnection() private connection: Connection) {}
+  constructor(
+    @InjectConnection() private connection: Connection,
+
+    @InjectModel(Product.name)
+    private readonly productModel: Model<ProductDocument>,
+  ) {}
   private readonly logger = new Logger(ProductsService.name);
 
   private called = false;
   @Cron(CronExpression.EVERY_SECOND)
-  handleCron() {
-    this.logger.debug('Called every second');
-
+  async handleCron() {
+    // DEBUGGING PURPOSES
     if (!this.called) {
       this.called = true;
     } else {
-      this.logger.log('returned');
+      // this.logger.log('returned');
       return;
     }
 
-    let workbook = XLSX.readFile(path.resolve('./images40.xlsx'), {
+    this.logger.log(`CRON job started at ${new Date().toISOString()}`);
+
+    const buffer = await this.getResource();
+
+    const result = this.processXLSXStream(buffer);
+
+    await this.importProducts(result);
+    this.logger.log('IMPORTS TO DATABASE WERE COMPLETED');
+    this.logger.log(`CRON job ended at ${new Date().toISOString()}`);
+  }
+
+  async getResource() {
+    this.logger.log('Getting the file resource');
+
+    const logger = this.logger;
+    // can be an fetch API CALL too
+    let stream = fs.createReadStream(path.resolve('./images40.xlsx'));
+    return new Promise<Buffer>((res) => {
+      let buffers = [];
+      stream.on('data', function (data) {
+        buffers.push(data);
+      });
+      stream.on('end', function () {
+        const buf = Buffer.concat(buffers);
+        stream = null;
+        buffers = null;
+        logger.log('File buffer complete, Resolving...');
+        res(buf);
+      });
+    });
+  }
+
+  processXLSXStream(stream: Buffer | Uint8Array) {
+    this.logger.log('Started processing xlsx to JSON');
+    let workbook = XLSX.read(stream, {
       nodim: true,
       dense: true,
       cellText: false,
@@ -71,6 +79,7 @@ export class ProductsService {
 
     workbook = null; // clear memory up!
     worksheet = null; // clear memory up!
+    this.logger.log('Loaded from XLSX to JSON');
 
     const result: Record<string, Product> = {};
     for (let i = 0; i < datas.length; i++) {
@@ -189,11 +198,99 @@ export class ProductsService {
 
       datas[i] = null; // release memory
     }
-    this.logger.log('Counting', Object.keys(result).length);
+    datas = null;
+    this.logger.log('Processing to JSON done');
 
-    datas = null; // ss
-    fs.writeFileSync(path.resolve('./result-i.json'), JSON.stringify(result));
+    return result;
+  }
+  async importProducts(products: Record<string, Product>): Promise<void> {
+    this.logger.log(`Imports started at ${new Date().toISOString()}`);
 
-    this.logger.log('DONE');
+    const existingProductIds = Object.keys(products);
+    const batchSize = 1000;
+    const batches = Math.ceil(existingProductIds.length / batchSize);
+
+    for (let i = 0; i < batches; i++) {
+      const start = i * batchSize;
+      this.logger.log(`Batch ${i + 1} started at ${new Date().toISOString()}`);
+
+      const end = Math.min((i + 1) * batchSize, existingProductIds.length);
+      const batchProductIds = existingProductIds.slice(start, end);
+      const batchProducts = batchProductIds.reduce((acc, id) => {
+        acc[id] = products[id];
+        return acc;
+      }, {});
+
+      await this.processProducts(batchProducts);
+      this.logger.log(`Batch ${i + 1} ended at ${new Date().toISOString()}`);
+    }
+
+    this.logger.log(`Imports ended at ${new Date().toISOString()}`);
+
+    this.logger.log(`Soft deletion started at ${new Date().toISOString()}`);
+
+    await this.markDeletedProducts(existingProductIds);
+    this.logger.log(`Soft deletion ended at ${new Date().toISOString()}`);
+  }
+
+  async processProducts(products: Record<string, Product>): Promise<void> {
+    const session = await this.productModel.startSession();
+    try {
+      await session.withTransaction(async () => {
+        for (const productId in products) {
+          await this.upsertProduct(products[productId]);
+        }
+      });
+      await session.commitTransaction();
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async upsertProduct(product: Product): Promise<ProductDocument> {
+    const filter = { _id: product._id };
+    const upsertProduct = new this.productModel({
+      ...product,
+      info: {
+        ...product.info,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    const update = {
+      $set: upsertProduct,
+    };
+    const options = { upsert: true, new: true };
+
+    return this.productModel.findOneAndUpdate(filter, update, options);
+  }
+
+  async markDeletedProducts(existingProductIds: string[]): Promise<void> {
+    const session = await this.productModel.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const products = await this.productModel.find({
+          _id: { $nin: existingProductIds },
+        });
+        for (const product of products) {
+          await this.deleteProduct(product._id);
+        }
+      });
+      await session.commitTransaction();
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async deleteProduct(productId: string): Promise<void> {
+    await this.productModel.findByIdAndUpdate(productId, {
+      deleted: true,
+      'info.deletedAt': new Date().toISOString(),
+    });
   }
 }

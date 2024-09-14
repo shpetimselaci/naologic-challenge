@@ -3,11 +3,11 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database.module';
-import { ProductsService } from './products/products.service';
+import { ProductsModule } from './products/products.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), DatabaseModule],
+  imports: [ScheduleModule.forRoot(), DatabaseModule, ProductsModule],
   controllers: [AppController],
-  providers: [AppService, ProductsService],
+  providers: [AppService],
 })
 export class AppModule {}

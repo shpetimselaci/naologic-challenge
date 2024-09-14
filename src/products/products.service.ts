@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'path';
 import * as _ from 'lodash';
 import { Product, ProductDocument } from './products.schema';
-import { completeText } from 'src/lib/openapi';
+import { enhanceDescription } from 'src/lib/langchain';
 
 XLSX.set_fs(fs);
 
@@ -328,9 +328,7 @@ export class ProductsService {
 
   async enhanceDescription(description: string): Promise<string> {
     try {
-      const response = await completeText(
-        `Enhance the following product description: ${description}`,
-      );
+      const response = await enhanceDescription(description);
       return response;
     } catch (error) {
       console.warn(error);

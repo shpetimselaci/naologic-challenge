@@ -14,23 +14,13 @@ XLSX.set_fs(fs);
 @Injectable()
 export class ProductsService {
   constructor(
-    @InjectConnection() private connection: Connection,
-
     @InjectModel(Product.name)
     private readonly productModel: Model<ProductDocument>,
   ) {}
   private readonly logger = new Logger(ProductsService.name);
 
-  private called = false;
-  @Cron(CronExpression.EVERY_SECOND)
+  @Cron(CronExpression.EVERY_DAY_AT_1AM) // change this to run it faster.
   async handleCron() {
-    // DEBUGGING PURPOSES
-    if (!this.called) {
-      this.called = true;
-    } else {
-      return;
-    }
-
     this.logger.log(`CRON job started at ${new Date().toISOString()}`);
     const buffer = await this.getResource();
     const result = this.processXLSXStream(buffer);
@@ -317,12 +307,13 @@ export class ProductsService {
 
     for (const productId in products) {
       const product = products[productId];
+
       let description =
         product.data.description || product.data.shortDescription;
       if (description) {
         try {
           description = await this.enhanceDescription(description);
-          this.logger.log(`New description: ${description}`);
+          this.logger.log(`New desc. for product ${productId}: ${description}`);
           await this.updateProductDescription(productId, description);
         } catch (error) {
           this.logger.error(error);

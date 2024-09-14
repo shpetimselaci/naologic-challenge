@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'path';
 import * as _ from 'lodash';
 import { Product, ProductDocument } from './products.schema';
+import { completeText } from 'src/lib/openapi';
 
 XLSX.set_fs(fs);
 
@@ -27,19 +28,22 @@ export class ProductsService {
     if (!this.called) {
       this.called = true;
     } else {
-      // this.logger.log('returned');
       return;
     }
 
     this.logger.log(`CRON job started at ${new Date().toISOString()}`);
-
     const buffer = await this.getResource();
-
     const result = this.processXLSXStream(buffer);
 
     await this.importProducts(result);
-    this.logger.log('IMPORTS TO DATABASE WERE COMPLETED');
-    this.logger.log(`CRON job ended at ${new Date().toISOString()}`);
+    this.logger.log(
+      'Product import completed. Enhancing product descriptions...',
+    );
+    const first10KeyValuePairs = _.pick(result, _.take(_.keys(result), 10));
+
+    await this.enhanceProductDescriptions(first10KeyValuePairs);
+    this.logger.log('Product descriptions enhanced successfully.');
+    this.logger.log(`Job ended at ${new Date().toISOString()}`);
   }
 
   async getResource() {
@@ -292,5 +296,55 @@ export class ProductsService {
       deleted: true,
       'info.deletedAt': new Date().toISOString(),
     });
+  }
+
+  async updateProductDescription(
+    productId: string,
+    description: string,
+  ): Promise<void> {
+    await this.productModel.findByIdAndUpdate(productId, {
+      $set: { 'data.description': description },
+    });
+  }
+
+  async enhanceProductDescriptions(
+    products: Record<string, Product>,
+  ): Promise<void> {
+    this.logger.log(
+      `Enhancing descriptions for ${Object.keys(products).length} products...`,
+    );
+    const startTime = new Date().getTime();
+
+    for (const productId in products) {
+      const product = products[productId];
+      let description =
+        product.data.description || product.data.shortDescription;
+      if (description) {
+        try {
+          description = await this.enhanceDescription(description);
+          this.logger.log(`New description: ${description}`);
+          await this.updateProductDescription(productId, description);
+        } catch (error) {
+          this.logger.error(error);
+        }
+      }
+    }
+
+    const endTime = new Date().getTime();
+    const duration = (endTime - startTime) / 1000;
+    this.logger.log(`Product descriptions enhanced in ${duration} seconds.`);
+  }
+
+  async enhanceDescription(description: string): Promise<string> {
+    try {
+      const response = await completeText(
+        `Enhance the following product description: ${description}`,
+      );
+      return response;
+    } catch (error) {
+      console.warn(error);
+      this.logger.error(error);
+      throw error;
+    }
   }
 }
